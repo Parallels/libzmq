@@ -60,6 +60,7 @@
 
 namespace zmq
 {
+    extern pfnExceptCallback fnExceptionCallback;
     const char *errno_to_string (int errno_);
     void zmq_abort (const char *errmsg_);
 }

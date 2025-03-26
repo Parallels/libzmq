@@ -800,10 +800,13 @@ int zmq::socket_base_t::term_endpoint (const char *addr_)
         }
     }
 
+    endpoint_lock.lock();
+
     //  Find the endpoints range (if any) corresponding to the addr_ string.
     range = endpoints.equal_range (resolved_addr);
     if (range.first == range.second) {
         errno = ENOENT;
+        endpoint_lock.unlock();
         return -1;
     }
 
@@ -814,6 +817,9 @@ int zmq::socket_base_t::term_endpoint (const char *addr_)
         term_child (it->second.first);
     }
     endpoints.erase (range.first, range.second);
+
+    endpoint_lock.unlock();
+
     return 0;
 }
 
@@ -1223,6 +1229,17 @@ void zmq::socket_base_t::pipe_terminated (pipe_t *pipe_)
             inprocs.erase (it);
             break;
         }
+
+	endpoint_lock.lock();
+
+	for (auto it = endpoints.begin(); it != endpoints.end(); ++it) {
+		if (it->second.second == pipe_) {
+			endpoints.erase(it);
+			break;
+		}
+	}
+
+	endpoint_lock.unlock();
 
     //  Remove the pipe from the list of attached pipes and confirm its
     //  termination if we are already shutting down.

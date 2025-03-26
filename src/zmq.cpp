@@ -935,7 +935,7 @@ int zmq_poll (zmq_pollitem_t *items_, int nitems_, long timeout_)
             int rc = select (0, &inset, &outset, &errset, ptimeout);
             if (unlikely (rc == SOCKET_ERROR)) {
                 errno = zmq::wsa_error_to_errno (WSAGetLastError ());
-                wsa_assert (errno == ENOTSOCK);
+				wsa_assert (errno == ENOTSOCK || errno == EINVAL);
                 return -1;
             }
 #else

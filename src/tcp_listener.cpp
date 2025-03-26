@@ -276,7 +276,9 @@ zmq::fd_t zmq::tcp_listener_t::accept ()
         wsa_assert (WSAGetLastError () == WSAEWOULDBLOCK ||
             WSAGetLastError () == WSAECONNRESET ||
             WSAGetLastError () == WSAEMFILE ||
-            WSAGetLastError () == WSAENOBUFS);
+            WSAGetLastError () == WSAENOBUFS ||
+            WSAGetLastError () == WSAEINVAL);
+
         return retired_fd;
     }
 #if !defined _WIN32_WCE
