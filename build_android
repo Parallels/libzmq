@@ -1,0 +1,113 @@
+#!/bin/sh
+
+export NDK_VER=android-ndk-r17c
+export NDK_ABI_VER=4.9
+export NDK_PLATFORM=darwin-x86_64
+
+BUILD_DIR="${PWD}/build/android"
+rm -rf ${BUILD_DIR}
+
+OLDPATH=$PATH
+
+ANDROID_BUILD_OPTS=()
+ANDROID_BUILD_OPTS+=("--enable-static")
+ANDROID_BUILD_OPTS+=("--disable-shared")
+
+export ANDROID_NDK_ROOT="/usr/local/android-ndk-r17c"
+OLDPATH=$PATH
+
+abis_to_build=()
+abis_to_build+=(arm64-v8a)
+abis_to_build+=(armeabi-v7a)
+abis_to_build+=(x86_64)
+for abi in "${abis_to_build[@]}"
+do
+	echo "building for ${abi}"
+	unset ANDROID_API
+	unset TRIPLET
+	unset PATH_PREFIX
+	unset ARCH
+	unset TOOLCHAIN_DIR
+	unset LD_EXTRA
+
+	case ${abi} in
+	arm64-v8a)
+		ANDROID_API=21
+		TRIPLET="aarch64-linux-android"
+		TOOLCHAIN_DIR="$BUILD_DIR/android-toolchain-arm64"
+		PATH_PREFIX="$TOOLCHAIN_DIR/bin/$TRIPLET-"
+		ARCH="arm64"
+		export CFLAGS="-fPIC -ffunction-sections -funwind-tables -fstack-protector -fno-short-enums -DANDROID -Wno-error=return-type"
+		LD_EXTRA=""
+	;;
+	armeabi-v7a)
+		ANDROID_API=19 
+		TRIPLET="arm-linux-androideabi"
+		TOOLCHAIN_DIR="$BUILD_DIR/android-toolchain-arm"
+		PATH_PREFIX="$TOOLCHAIN_DIR/bin/$TRIPLET-"
+		ARCH="arm"
+		export CFLAGS="-march=armv7-a -target armv7-none-linux-androideabi -mfpu=vfp -fpic -ffunction-sections -funwind-tables -fstack-protector -fno-short-enums -DANDROID -Wno-error=return-type"
+		LD_EXTRA="-march=armv7-a -landroid_support"
+	;;
+	x86_64)
+		ANDROID_API=21
+		TOOLCHAIN_DIR="$BUILD_DIR/android-toolchain-x86_64"
+		TRIPLET="x86_64-linux-android"
+		PATH_PREFIX="$TOOLCHAIN_DIR/bin/$TRIPLET-"
+		ARCH="x86_64"
+		export CFLAGS="-fPIC -ffunction-sections -m64 -msse4.2 -funwind-tables -fstack-protector -fno-short-enums -DANDROID -Wno-error=return-type"
+		LD_EXTRA=""
+	;;
+	esac
+
+	make clean
+	toolchain_cmd="$ANDROID_NDK_ROOT/build/tools/make_standalone_toolchain.py --arch ${ARCH} --stl=libc++ --api $ANDROID_API --install-dir $TOOLCHAIN_DIR"
+	echo "$toolchain_cmd"
+	eval ${toolchain_cmd} && eval "export PATH=$TOOLCHAIN_DIR/bin:$OLDPATH"
+
+	unset output_path
+	output_path="$BUILD_DIR/$abi"
+
+	export CXXFLAGS="$CFLAGS -std=c++11" 
+	export LDFLAGS="-L${output_path}/lib -isysroot=${ANDROID_NDK_ROOT}/platforms/android-${ANDROID_API}/arch-${ARCH}/ -L${ANDROID_NDK_ROOT}/sources/cxx-stl/llvm-libc++/libs/${abi} ${LD_EXTRA} -lm -lc++_static -lc++abi"
+	export INCLUDE="$CXXFLAGS"
+
+	STDLN_PREFIX="$TOOLCHAIN_DIR/bin/$TRIPLET-"
+	export AS="${STDLN_PREFIX}as" 
+	export AR="${STDLN_PREFIX}ar" 
+	export RANLIB="${STDLN_PREFIX}ranlib" 
+	export CC="${STDLN_PREFIX}clang" 
+	export CXX="${STDLN_PREFIX}clang++" 
+	export LD="${STDLN_PREFIX}ld" 
+	export STRIP="${STDLN_PREFIX}strip" 
+	export LIBRARY_PATH="$TOOLCHAIN_DIR/lib"
+	
+	ANDROID_BUILD_OPTS+=("CC=${STDLN_PREFIX}clang")
+	ANDROID_BUILD_OPTS+=("CXX=${STDLN_PREFIX}clang++")
+	ANDROID_BUILD_OPTS+=("LD=${STDLN_PREFIX}ld")
+	ANDROID_BUILD_OPTS+=("AS=${STDLN_PREFIX}as")
+	ANDROID_BUILD_OPTS+=("AR=${STDLN_PREFIX}ar")
+	ANDROID_BUILD_OPTS+=("RANLIB=${STDLN_PREFIX}ranlib")
+
+	ANDROID_BUILD_OPTS+=("--host=${TRIPLET}")
+	ANDROID_BUILD_OPTS+=("--prefix=${output_path}")
+
+	echo "#######################"
+	echo ${ANDROID_BUILD_OPTS[@]}
+	echo "#######################"
+	cmd="./autogen.sh && ./configure ${ANDROID_BUILD_OPTS[@]}" 
+	eval ${cmd} && make -j4 && make install
+
+	make distclean
+
+	rm -rf $TOOLCHAIN_DIR
+	
+	mv -f $BUILD_DIR/$abi/include $BUILD_DIR/
+	mkdir -p $BUILD_DIR/lib
+	echo "moving $BUILD_DIR/$abi/lib/* to $BUILD_DIR/lib/$abi/"
+	mkdir -p $BUILD_DIR/lib/$abi/
+	mv -f $BUILD_DIR/$abi/lib/* $BUILD_DIR/lib/$abi/
+	rm -rf $BUILD_DIR/$abi
+done
+
+export PATH=$OLDPATH

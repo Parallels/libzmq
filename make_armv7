@@ -1,0 +1,31 @@
+#!/bin/sh
+
+XCODE_DIR=`xcode-select --print-path`
+
+OPTS=${1}
+SDKVER=${2}
+ARCH=arm-apple-darwin
+PLATFORM=iPhoneOS 
+SDKROOT=${XCODE_DIR}/Platforms/${PLATFORM}.platform/Developer/SDKs/${PLATFORM}$SDKVER.sdk 
+MIN_IOS_VERSION="-miphoneos-version-min=9.0"
+
+export PATH="${XCODE_DIR}/Toolchains/XcodeDefault.xctoolchain/usr/bin:${XCODE_DIR}/Toolchains/XcodeDefault.xctoolchain/usr/sbin:$PATH"
+
+export AS="/usr/bin/as"
+export ASCPP="/usr/bin/as"
+export AR="/usr/bin/ar"
+export RANLIB="/usr/bin/ranlib"
+export CC="/usr/bin/clang"
+export CXX="/usr/bin/clang++"
+export LD="/usr/bin/ld"
+export STRIP="/usr/bin/strip"
+
+export CFLAGS="-arch armv7 -isysroot ${SDKROOT} ${MIN_IOS_VERSION}"
+export CPPFLAGS="${CFLAGS}"
+export CXXFLAGS="${CPPFLAGS} -std=c++11"
+export LDFLAGS="-arch armv7 -stdlib=libc++"
+
+cmd="./configure --host=${ARCH} ${OPTS}" 
+eval ${cmd}
+make -j8 V=0
+make install

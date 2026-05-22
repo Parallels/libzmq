@@ -1,0 +1,34 @@
+#!/bin/sh
+
+build_dir="${PWD}/build/ios"
+rm -rf ${build_dir}
+
+lipo_cmd="lipo"
+basic_opts="--build=x86_64-apple-darwin --disable-dependency-tracking --enable-static --disable-shared"
+sdk_ver=$(xcodebuild -showsdks \
+    | grep iphoneos | sort | tail -n 1 | awk '{print substr($NF, 9)}' \
+    )
+
+# configure, make and install library 
+targets=(armv7 arm64)
+for target in "${targets[@]}"
+do
+	output_path="${build_dir}/${target}"
+
+	configure_opts="${basic_opts} --prefix=${output_path} --exec-prefix=${output_path}"
+	echo $configure_opts
+	./make_${target} "${configure_opts}" "${sdk_ver}"
+	make distclean
+	lipo_list+="-arch ${target} ${output_path}/lib/libzmq.a "
+done
+
+# make build dir and copy headers
+mkdir -p ${build_dir}
+cp -r ${output_path}/include ${output_path}/include/../..
+
+# make lib dir and pack fat binary
+mkdir -p ${build_dir}/lib
+${lipo_cmd} -create ${lipo_list} -output ${build_dir}/lib/libzmq.a 
+
+# cleanup
+rm -rf ${build_dir}/armv7 ${build_dir}/arm64
